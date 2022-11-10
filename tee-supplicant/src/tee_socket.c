@@ -721,6 +721,48 @@ static TEEC_Result tee_socket_ioctl(size_t num_params,
 	}
 }
 
+static TEEC_Result tee_socket_listen(size_t num_params,
+				   struct tee_ioctl_param *params)
+{
+	TEEC_Result res = TEEC_ERROR_GENERIC;
+	int handle = 0;
+	int fd = 0;
+	uint32_t instance_id = 0;
+	char *server = NULL;
+	uint32_t ip_vers = 0;
+	uint16_t port = 0;
+	uint32_t protocol = 0;
+
+	if (num_params != 4 ||
+	    !chk_pt(params + 0, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT) ||
+	    !chk_pt(params + 1, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT) ||
+	    !chk_pt(params + 2, TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT) ||
+	    !chk_pt(params + 3, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT))
+		return TEEC_ERROR_BAD_PARAMETERS;
+
+	instance_id = params[0].b;
+	port = params[1].a;
+	protocol = params[1].b;
+	ip_vers = params[1].c;
+
+	server = tee_supp_param_to_va(params + 2);
+	if (!server || server[MEMREF_SIZE(params + 2) - 1] != '\0')
+		return TEE_ISOCKET_ERROR_HOSTNAME;
+
+/* 	res = sock_connect(ip_vers, protocol, server, port, &fd);
+	if (res != TEEC_SUCCESS)
+		return res;
+
+	handle = sock_handle_get(instance_id, fd);
+	if (handle < 0) {
+		close(fd);
+		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
+ */
+	params[3].a = 12345;
+	return TEEC_SUCCESS;
+}
+
 TEEC_Result tee_socket_process(size_t num_params,
 			       struct tee_ioctl_param *params)
 {
@@ -740,6 +782,8 @@ TEEC_Result tee_socket_process(size_t num_params,
 		return tee_socket_recv(num_params, params);
 	case OPTEE_MRC_SOCKET_IOCTL:
 		return tee_socket_ioctl(num_params, params);
+	case OPTEE_MRC_SOCKET_LISTEN:
+		return tee_socket_listen(num_params, params);
 	default:
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}

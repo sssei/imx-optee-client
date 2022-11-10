@@ -259,6 +259,20 @@
  */
 #define OPTEE_MRC_SOCKET_IOCTL	5
 
+
+/*
+ * Listen socket
+ *
+ * [in]     param[0].u.value.a	OPTEE_MRC_SOCKET_Listen
+ * [in]     param[0].u.value.b	TA instance id
+ * [in]     param[1].u.value.a	server port number
+ * [in]     param[1].u.value.b	protocol, TEE_ISOCKET_PROTOCOLID_*
+ * [in]     param[1].u.value.c	ip version TEE_IP_VERSION_* from tee_ipsocket.h
+ * [in]     param[2].u.tmem	server address
+ * [out]    param[3].u.value.a	socket handle (32-bit)
+ */
+#define OPTEE_MRC_SOCKET_LISTEN	 6
+
 /*
  * End of definitions for messages with .cmd == OPTEE_MSG_RPC_CMD_SOCKET
  */
