@@ -749,6 +749,13 @@ static TEEC_Result tee_socket_listen(size_t num_params,
 	if (!server || server[MEMREF_SIZE(params + 2) - 1] != '\0')
 		return TEE_ISOCKET_ERROR_HOSTNAME;
 
+	(void) protocol;
+	(void) port;
+	(void) ip_vers;
+	(void) instance_id;
+	(void) fd;
+	(void) res;
+	(void) handle;
 /* 	res = sock_connect(ip_vers, protocol, server, port, &fd);
 	if (res != TEEC_SUCCESS)
 		return res;
