@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (c) 2016-2017, Linaro Limited
  * All rights reserved.
  *
@@ -44,6 +44,8 @@
 #include <tee_socket.h>
 #include <tee_supplicant.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include "handle.h"
 #include "__tee_isocket_defines.h"
@@ -241,6 +243,91 @@ static TEEC_Result sock_connect(uint32_t ip_vers, unsigned int protocol,
 	freeaddrinfo(res0);
 	*ret_fd = fd;
 	return r;
+}
+
+static TEEC_Result sock_listen(uint32_t ip_vers, unsigned int protocol,
+				const char *server, uint16_t port, int *ret_fd)
+{
+	TEEC_Result r = TEEC_ERROR_GENERIC;
+	struct addrinfo *res0 = NULL;
+	struct addrinfo *res = NULL;
+	int fd = -1;
+	char port_name[10] = { 0 };
+	struct addrinfo hints;
+
+	memset(&hints, 0, sizeof(hints));
+
+	snprintf(port_name, sizeof(port_name), "%" PRIu16, port);
+
+	switch (ip_vers) {
+	case TEE_IP_VERSION_DC:
+		hints.ai_family = AF_UNSPEC;
+		break;
+	case TEE_IP_VERSION_4:
+		hints.ai_family = AF_INET;
+		break;
+	case TEE_IP_VERSION_6:
+		hints.ai_family = AF_INET6;
+		break;
+	default:
+		return TEEC_ERROR_BAD_PARAMETERS;
+	}
+
+	hints.ai_flags = AI_PASSIVE;
+
+	if (protocol == TEE_ISOCKET_PROTOCOLID_TCP)
+		hints.ai_socktype = SOCK_STREAM;
+	else if (protocol == TEE_ISOCKET_PROTOCOLID_UDP)
+		hints.ai_socktype = SOCK_DGRAM;
+	else
+		return TEEC_ERROR_BAD_PARAMETERS;
+
+	
+	if (getaddrinfo(NULL, port_name, &hints, &res0))
+		return TEE_ISOCKET_ERROR_HOSTNAME;
+
+	for (res = res0; res; res = res->ai_next) {
+		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (fd == -1) {
+			if (errno == ENOMEM || errno == ENOBUFS)
+				r = TEE_ISOCKET_ERROR_OUT_OF_RESOURCES;
+			else
+				r = TEEC_ERROR_GENERIC;
+			continue;
+		}
+
+ 		if (bind(fd, res->ai_addr, res->ai_addrlen)) {
+			close(fd);
+			fd = -1;
+			r = TEEC_ERROR_GENERIC;
+			continue;
+		}
+
+		if (listen(fd, 5)){
+			close(fd);
+			fd = -1;
+			continue;
+		}
+		r = TEEC_SUCCESS;
+		break;
+	}
+
+	freeaddrinfo(res0);
+	*ret_fd = fd;
+	return r;
+}
+
+static TEEC_Result sock_accept(int *fd){
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof addr;
+	int sock;
+
+	sock = accept(*fd, (struct sockaddr*)&addr, &addrlen);
+	if(sock < 0)
+		return TEEC_ERROR_GENERIC; 
+		
+	*fd = sock;
+	return TEEC_SUCCESS;
 }
 
 static TEEC_Result tee_socket_open(size_t num_params,
@@ -749,14 +836,7 @@ static TEEC_Result tee_socket_listen(size_t num_params,
 	if (!server || server[MEMREF_SIZE(params + 2) - 1] != '\0')
 		return TEE_ISOCKET_ERROR_HOSTNAME;
 
-	(void) protocol;
-	(void) port;
-	(void) ip_vers;
-	(void) instance_id;
-	(void) fd;
-	(void) res;
-	(void) handle;
-/* 	res = sock_connect(ip_vers, protocol, server, port, &fd);
+	res = sock_listen(ip_vers, protocol, server, port, &fd);
 	if (res != TEEC_SUCCESS)
 		return res;
 
@@ -765,8 +845,47 @@ static TEEC_Result tee_socket_listen(size_t num_params,
 		close(fd);
 		return TEEC_ERROR_OUT_OF_MEMORY;
 	}
- */
-	params[3].a = 12345;
+ 
+	params[3].a = handle;
+	return TEEC_SUCCESS;
+}
+
+static TEEC_Result tee_socket_accept(size_t num_params,
+				   struct tee_ioctl_param *params)
+{
+	TEEC_Result res = TEEC_ERROR_GENERIC;
+	int handle = 0;
+	int fd = 0;
+	uint32_t instance_id = 0;
+	FILE *fp;
+	fp = fopen("tee_client.log", "w");
+	fprintf(fp, "This is tee_socket.c:862 tee_socket_accept\n");
+
+	if (num_params != 2 ||
+	    !chk_pt(params + 0, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT) ||
+	    !chk_pt(params + 1, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT))
+		return TEEC_ERROR_BAD_PARAMETERS;
+
+	fprintf(fp, "This is tee_socket.c:869 tee_socket_accept\n");
+	instance_id = params[0].b;
+	handle = params[0].c;
+	fd = sock_handle_to_fd(instance_id, handle);
+	if (fd < 0)
+		return TEEC_ERROR_BAD_PARAMETERS;
+
+	fprintf(fp, "This is tee_socket.c:876 tee_socket_accept\n");
+	res = sock_accept(&fd);
+	if (res != TEEC_SUCCESS)
+		return res;
+
+	handle = sock_handle_get(instance_id, fd);
+	if (handle < 0) {
+		close(fd);
+		return TEEC_ERROR_OUT_OF_MEMORY;
+	}
+ 
+ 	fprintf(fp, "This is tee_socket.c:887 tee_socket_accept\n");
+	params[3].a = handle;
 	return TEEC_SUCCESS;
 }
 
@@ -791,6 +910,8 @@ TEEC_Result tee_socket_process(size_t num_params,
 		return tee_socket_ioctl(num_params, params);
 	case OPTEE_MRC_SOCKET_LISTEN:
 		return tee_socket_listen(num_params, params);
+	case OPTEE_MRC_SOCKET_ACCEPT:
+		return tee_socket_accept(num_params, params);
 	default:
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
