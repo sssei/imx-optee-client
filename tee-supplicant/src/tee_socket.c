@@ -258,7 +258,7 @@ static TEEC_Result sock_listen(uint32_t ip_vers, unsigned int protocol,
 	memset(&hints, 0, sizeof(hints));
 
 	snprintf(port_name, sizeof(port_name), "%" PRIu16, port);
-
+	
 	switch (ip_vers) {
 	case TEE_IP_VERSION_DC:
 		hints.ai_family = AF_UNSPEC;
@@ -573,11 +573,11 @@ static TEEC_Result read_with_timeout(int fd, void *buf, size_t *blen,
 	struct pollfd pfd = { .fd = fd, .events = POLLIN };
 	ssize_t r = 0;
 
-	res = poll_with_timeout(&pfd, 1, timeout);
+  	res = poll_with_timeout(&pfd, 1, timeout);
 	if (res != TEEC_SUCCESS)
 		return res;
 
-	r = read(fd, buf, *blen);
+ 	r = read(fd, buf, *blen);
 	if (r == -1) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
 			return TEE_ISOCKET_ERROR_TIMEOUT;
@@ -597,6 +597,7 @@ static TEEC_Result tee_socket_recv(size_t num_params,
 	void *buf = NULL;
 	size_t bytes = 0;
 
+
 	if (num_params != 3 ||
 	    !chk_pt(params + 0, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT) ||
 	    !chk_pt(params + 1, TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_OUTPUT) ||
@@ -605,6 +606,7 @@ static TEEC_Result tee_socket_recv(size_t num_params,
 
 	instance_id = params[0].b;
 	handle = params[0].c;
+
 	fd = sock_handle_to_fd(instance_id, handle);
 	if (fd < 0)
 		return TEEC_ERROR_BAD_PARAMETERS;
@@ -857,23 +859,18 @@ static TEEC_Result tee_socket_accept(size_t num_params,
 	int handle = 0;
 	int fd = 0;
 	uint32_t instance_id = 0;
-	FILE *fp;
-	fp = fopen("tee_client.log", "w");
-	fprintf(fp, "This is tee_socket.c:862 tee_socket_accept\n");
 
 	if (num_params != 2 ||
 	    !chk_pt(params + 0, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT) ||
 	    !chk_pt(params + 1, TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT))
 		return TEEC_ERROR_BAD_PARAMETERS;
 
-	fprintf(fp, "This is tee_socket.c:869 tee_socket_accept\n");
 	instance_id = params[0].b;
 	handle = params[0].c;
 	fd = sock_handle_to_fd(instance_id, handle);
 	if (fd < 0)
 		return TEEC_ERROR_BAD_PARAMETERS;
 
-	fprintf(fp, "This is tee_socket.c:876 tee_socket_accept\n");
 	res = sock_accept(&fd);
 	if (res != TEEC_SUCCESS)
 		return res;
@@ -883,9 +880,8 @@ static TEEC_Result tee_socket_accept(size_t num_params,
 		close(fd);
 		return TEEC_ERROR_OUT_OF_MEMORY;
 	}
- 
- 	fprintf(fp, "This is tee_socket.c:887 tee_socket_accept\n");
-	params[3].a = handle;
+	
+ 	params[1].a = handle;
 	return TEEC_SUCCESS;
 }
 
